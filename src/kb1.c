@@ -21,7 +21,7 @@ void kb_task()
 {
 }
 
-uint8_t kb_report(uint8_t keycode[6])
+hid_keyboard_modifier_bm_t kb_report(uint8_t keycode[6])
 {
     uint8_t modifier = 0;
     if (!gpio_get(2))

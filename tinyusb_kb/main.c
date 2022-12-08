@@ -55,7 +55,7 @@ void led_blinking_task(void);
 void hid_task(void);
 
 // declares for src/kb*.c
-extern uint8_t kb_report(uint8_t keycode[6]);
+extern hid_keyboard_modifier_bm_t kb_report(uint8_t keycode[6]);
 extern void kb_init(void);
 extern void kb_task(void);
 
