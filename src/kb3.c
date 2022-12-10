@@ -75,6 +75,25 @@ void kb_init()
     gpio_set_dir(8, GPIO_OUT);
 }
 
+static void set_kb_scan(uint idx, bool is_up)
+{
+    if (kb_scan[idx].debounce)
+        --kb_scan[idx].debounce;
+    if (is_up)
+    {
+        if (!kb_scan[idx].debounce)
+            kb_scan[idx].status = 0;
+    }
+    else
+    {
+        if (!kb_scan[idx].status)
+        {
+            kb_scan[idx].status = 1 + KB_GHOST_TICKS;
+            kb_scan[idx].debounce = KB_DEBOUNCE_TICKS;
+        }
+    }
+}
+
 void kb_task()
 {
     static absolute_time_t next_scan_us = {0};
@@ -99,21 +118,7 @@ void kb_task()
         for (uint row = 0; row < 8; row++)
         {
             uint idx = row * 8 + col;
-            if (kb_scan[idx].debounce)
-                --kb_scan[idx].debounce;
-            if (row_data & (1u << row))
-            { // key is up
-                if (!kb_scan[idx].debounce)
-                    kb_scan[idx].status = 0;
-            }
-            else
-            { // key is down
-                if (!kb_scan[idx].status)
-                {
-                    kb_scan[idx].status = 1 + KB_GHOST_TICKS;
-                    kb_scan[idx].debounce = KB_DEBOUNCE_TICKS;
-                }
-            }
+            set_kb_scan(idx, row_data & (1u << row));
             // population count includes ghosted and bouncing keys
             if (kb_scan[idx].status)
             {
@@ -122,6 +127,11 @@ void kb_task()
             }
         }
     }
+
+    // RESTORE key is not in matrix
+    set_kb_scan(64, gpio_get(18));
+    if (kb_scan[64].status > 1)
+        kb_scan[64].status = 1;
 
     // use pop count to find ghosted keys over multiple scans
     for (uint col = 0; col < 8; col++)
