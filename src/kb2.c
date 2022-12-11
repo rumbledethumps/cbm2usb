@@ -86,6 +86,9 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode[6])
     uint8_t modifier = 0;
     size_t code_count = 0;
 
+    if (!gpio_get(18)) // RESTORE key
+        keycode[code_count++] = HID_KEY_BACKSLASH;
+
     for (uint col = 0; col < 8; col++)
     {
         uint8_t row_data = kb_scan[col];
@@ -98,22 +101,17 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode[6])
                     // 3 keycodes is ok, >=4 may be a decode error
                     uint8_t code = CBM_TO_KEYCODE[row * 8 + col];
                     keycode[code_count] = code;
-                    // printf("KEY:%d col:%d row:%d code:%d\n", row * 8 + col, col, row, code);
                 }
                 else
                 {
                     // phantom condition
                     keycode[0] = keycode[1] = keycode[2] =
                         keycode[3] = keycode[4] = keycode[5] = 1;
-                    // printf("phantom\n");
                 }
                 code_count++;
             }
         }
     }
-
-    if (code_count < 4 && !gpio_get(18))
-        keycode[code_count] = HID_KEY_BACKSLASH;
 
     return modifier;
 }

@@ -10,6 +10,7 @@
 // Debounce and ghost detection added.
 // Keycode mapping still naive.
 
+#define KB_CAS_US 6
 #define KB_SCAN_INTERVAL_US 200
 #define KB_GHOST_US 2000
 #define KB_DEBOUNCE_US 5000
@@ -108,7 +109,7 @@ void kb_task()
     // read the matrix, one scan of all columns
     for (uint col = 0; col < 8; col++)
     {
-        busy_wait_us_32(6);
+        busy_wait_us_32(KB_CAS_US);
         uint8_t row_data = gpio_get_all();
         gpio_set_dir(8 + col, GPIO_IN);
         if (col == 7)
@@ -133,24 +134,22 @@ void kb_task()
     if (kb_scan[64].status > 1)
         kb_scan[64].status = 1;
 
-    // use pop count to find ghosted keys over multiple scans
+    // use pop count to find ghosted keys
     for (uint col = 0; col < 8; col++)
     {
         for (uint row = 0; row < 8; row++)
         {
             uint idx = row * 8 + col;
-            if (kb_col_pop[col] > 1 && kb_row_pop[row] > 1)
-            {
-                // ghosted keys never quite activate
-                if (kb_scan[idx].status > 2)
-                    --kb_scan[idx].status;
-            }
-            else
-            {
-                // clean keys get promoted here
-                if (kb_scan[idx].status > 1)
-                    --kb_scan[idx].status;
-            }
+            if (kb_scan[idx].status > 1)
+                if (kb_col_pop[col] > 1 && kb_row_pop[row] > 1)
+                {
+                    if (kb_scan[idx].debounce)
+                        kb_scan[idx].status = 1 + KB_GHOST_TICKS;
+                    else if (kb_scan[idx].status > 2)
+                        --kb_scan[idx].status;
+                }
+                else
+                    --kb_scan[idx].status == 1;
         }
     }
 }

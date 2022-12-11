@@ -19,7 +19,6 @@ pin 20 to GP0
 
 The code in `src` is a series of iterations showing how to read a
 keyboard martix without diodes. The final iteration is proper and good.
-TODO final iteration
 
 The code in `tinyusb_kb` is a quick hack of an example from the TinyUSB
 library. The 10ms rate limiting logic is from there. That's fine for
