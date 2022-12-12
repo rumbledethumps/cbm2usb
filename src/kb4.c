@@ -40,7 +40,7 @@ static const uint8_t CBM_TO_KEYCODE[] = {
     HID_KEY_EQUAL, HID_KEY_P, HID_KEY_L, HID_KEY_COMMA,                      // 40-43
     HID_KEY_PERIOD, HID_KEY_SEMICOLON, HID_KEY_BRACKET_LEFT, HID_KEY_MINUS,  // 44-47
     HID_KEY_GRAVE, HID_KEY_BRACKET_RIGHT, HID_KEY_APOSTROPHE, HID_KEY_SLASH, // 48-51
-    HID_KEY_SHIFT_RIGHT, HID_KEY_EQUAL, HID_KEY_GRAVE, HID_KEY_HOME,         // 52-55
+    HID_KEY_SHIFT_RIGHT, HID_KEY_PAGE_DOWN, HID_KEY_PAGE_UP, HID_KEY_HOME,   // 52-55
     HID_KEY_DELETE, HID_KEY_ENTER, HID_KEY_ARROW_RIGHT, HID_KEY_ARROW_DOWN,  // 56-59
     HID_KEY_F1, HID_KEY_F3, HID_KEY_F5, HID_KEY_F7,                          // 60-63
     HID_KEY_BACKSLASH                                                        // 64 (RESTORE)
@@ -58,26 +58,32 @@ hid_keyboard_modifier_bm_t cbm_to_modifier(uint8_t cbmcode)
 // Translate CBM code into USB HID keyboard code
 void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
 {
+    // Most keys work correctly with a simple table translation.
+    // However, the VIC/C64 keyboard is not ASCII so most symbols
+    // are in a different place. The Keyrah V2b works like this.
+    // i.e. Shift-2 will always be an [@] instead of a ["].
     uint8_t cbmcode = *code;
     *code = CBM_TO_KEYCODE[cbmcode];
-    // These overrides makes the keyboard good for ASCII.
-    // Use a different set for emulators like VICE and MiSTer.
+    // These overrides makes the C64 keyboard suitable for ASCII.
+    // Every necessary shift state is mapped so this will also work
+    // with VICE. If you make a .VKM file, please send a pull request.
+    // See 4.2: https://vice-emu.sourceforge.io/vice_4.html
     const hid_keyboard_modifier_bm_t SHIFT =
         KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;
     if (*modifier & SHIFT)
         switch (cbmcode)
         {
-        case 1: // SHIFT-backspace -> ESC
+        case 1: // Shift left arrow -> ESC
             *modifier &= ~SHIFT;
             *code = HID_KEY_ESCAPE;
             break;
-        case 7: // Shoft 2 Quote
+        case 7: // Shift 2 quote
             *code = HID_KEY_APOSTROPHE;
             break;
-        case 23: // Shift 6 Ampersand
+        case 23: // Shift 6 ampersand
             *code = HID_KEY_7;
             break;
-        case 24: // Shift 7 Apostrophe
+        case 24: // Shift 7 apostrophe
             *modifier &= ~SHIFT;
             *code = HID_KEY_APOSTROPHE;
             break;
@@ -87,31 +93,62 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
         case 32: // Shift 9 R paren
             *code = HID_KEY_0;
             break;
-        case 45: // L bracket
+        case 39: // Shift 0
+            *code = HID_KEY_F12;
+            *modifier &= ~SHIFT;
+            break;
+        case 40: // Shift Plus
+            *modifier &= ~SHIFT;
+            *code = HID_KEY_PAGE_UP;
+            break;
+        case 47: // Shift Minus
+            *modifier &= ~SHIFT;
+            *code = HID_KEY_PAGE_DOWN;
+            break;
+        case 45: // Shift @ L bracket
             *modifier &= ~SHIFT;
             *code = HID_KEY_BRACKET_LEFT;
             break;
-        case 48: // Sterling Pound -> underbar
+        case 48: // Shift Sterling Pound underbar
             *code = HID_KEY_MINUS;
             break;
-        case 50: // R Bracket
+        case 50: // Shift * R Bracket
             *modifier &= ~SHIFT;
             *code = HID_KEY_BRACKET_RIGHT;
             break;
-        case 55: // CLR -> END
+        case 54: // Shift up arrow tilde
+            *code = HID_KEY_GRAVE;
+            break;
+        case 55: // Shift CLR/HOME -> END
             *modifier &= ~SHIFT;
             *code = HID_KEY_END;
             break;
-        case 56: // INST
+        case 56: // Shift INST/DEL
             *modifier &= ~SHIFT;
             *code = HID_KEY_INSERT;
             break;
-        case 58: // LEFT
+        case 58: // Shift CRSR LEFT/RIGHT
             *code = HID_KEY_ARROW_LEFT;
             *modifier &= ~SHIFT;
             break;
-        case 59: // UP
+        case 59: // Shift CRSR UP/DOWN
             *code = HID_KEY_ARROW_UP;
+            *modifier &= ~SHIFT;
+            break;
+        case 60: // Shift F1/F2
+            *code = HID_KEY_F2;
+            *modifier &= ~SHIFT;
+            break;
+        case 61: // Shift F3/F4
+            *code = HID_KEY_F4;
+            *modifier &= ~SHIFT;
+            break;
+        case 62: // Shift F5/F6
+            *code = HID_KEY_F6;
+            *modifier &= ~SHIFT;
+            break;
+        case 63: // Shift F7/F8
+            *code = HID_KEY_F8;
             *modifier &= ~SHIFT;
             break;
         }
@@ -125,60 +162,43 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
             *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
             *code = HID_KEY_SEMICOLON;
             break;
+        case 46: // @
+            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+            *code = HID_KEY_2;
+            break;
+        case 49: // *
+            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+            *code = HID_KEY_8;
+            break;
         case 50: // Semicolon
             *code = HID_KEY_SEMICOLON;
             break;
-        case 54: // Up arrow -> carat
+        case 54: // Up arrow carat
             *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
             *code = HID_KEY_6;
             break;
         }
-    // Keys that ignore SHIFT
-    switch (cbmcode)
-    {
-    case 39: // Zero
-    case 47: // Minus
-    case 53: // Equals
-        *modifier &= ~SHIFT;
-        break;
-    case 46: // @
-        *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
-        *code = HID_KEY_2;
-        break;
-    case 49: // *
-        *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
-        *code = HID_KEY_8;
-        break;
-    }
-    // ALT overrides
-    // TODO want a non-ALT idea for these
-    const hid_keyboard_modifier_bm_t ALT =
-        KEYBOARD_MODIFIER_LEFTALT | KEYBOARD_MODIFIER_RIGHTALT;
-    if (*modifier & ALT)
-        switch (cbmcode)
-        {
-        case 45: // Left curly
-            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
-            *modifier &= ~ALT;
-            *code = HID_KEY_BRACKET_LEFT;
-            break;
-        case 50: // Right curly
-            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
-            *modifier &= ~ALT;
-            *code = HID_KEY_BRACKET_RIGHT;
-            break;
-        }
-    // CTRL overrides
+    // CTRL-[ is often used on keyboards without a dedicated ESC key.
+    // This simulates that keypress, use SHIFT-Left if real ESC needed.
     const hid_keyboard_modifier_bm_t CTRL =
         KEYBOARD_MODIFIER_LEFTCTRL | KEYBOARD_MODIFIER_RIGHTCTRL;
     if (*modifier & CTRL)
         switch (cbmcode)
         {
-        case 45: // CTRL LEFT BRACKET -> ESC
-            *modifier &= ~CTRL;
-            *code = HID_KEY_ESCAPE;
+        case 45: // Colon
+        case 46: // @
+            *modifier &= ~SHIFT;
+            *code = HID_KEY_BRACKET_LEFT;
             break;
         }
+    // Equal key is the only one without a SHIFT state.
+    switch (cbmcode)
+    {
+    case 53: // Equal
+        *code = HID_KEY_EQUAL;
+        *modifier &= ~SHIFT;
+        break;
+    }
 }
 
 static void set_kb_scan(uint idx, bool is_up)
