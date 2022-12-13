@@ -27,8 +27,8 @@ static struct
 } kb_scan[65];
 
 static const uint8_t CBM_TO_KEYCODE[] = {
-    HID_KEY_1, HID_KEY_BACKSPACE, HID_KEY_CONTROL_LEFT, HID_KEY_PAUSE,       // 0-3
-    HID_KEY_SPACE, HID_KEY_ALT_LEFT, HID_KEY_Q, HID_KEY_2,                   // 4-7
+    HID_KEY_1, HID_KEY_BACKSPACE, HID_KEY_CONTROL_LEFT, HID_KEY_ESCAPE,      // 0-3
+    HID_KEY_SPACE, HID_KEY_TAB, HID_KEY_Q, HID_KEY_2,                        // 4-7
     HID_KEY_3, HID_KEY_W, HID_KEY_A, HID_KEY_SHIFT_LEFT,                     // 8-11
     HID_KEY_Z, HID_KEY_S, HID_KEY_E, HID_KEY_4,                              // 12-15
     HID_KEY_5, HID_KEY_R, HID_KEY_D, HID_KEY_X,                              // 16-19
@@ -73,10 +73,6 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
     if (*modifier & SHIFT)
         switch (cbmcode)
         {
-        case 1: // Shift left arrow -> ESC
-            *modifier &= ~SHIFT;
-            *code = HID_KEY_ESCAPE;
-            break;
         case 7: // Shift 2 quote
             *code = HID_KEY_APOSTROPHE;
             break;
@@ -176,19 +172,6 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
         case 54: // Up arrow carat
             *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
             *code = HID_KEY_6;
-            break;
-        }
-    // CTRL-[ is often used on keyboards without a dedicated ESC key.
-    // This simulates that keypress, use SHIFT-Left if real ESC needed.
-    const hid_keyboard_modifier_bm_t CTRL =
-        KEYBOARD_MODIFIER_LEFTCTRL | KEYBOARD_MODIFIER_RIGHTCTRL;
-    if (*modifier & CTRL)
-        switch (cbmcode)
-        {
-        case 45: // Colon
-        case 46: // @
-            *modifier &= ~SHIFT;
-            *code = HID_KEY_BRACKET_LEFT;
             break;
         }
     // Equal key is the only one without a SHIFT state.
@@ -357,43 +340,57 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
     {
         if (kb_scan[cbmcode].status == 1 && !kb_scan[cbmcode].sent)
         {
-            hid_keyboard_modifier_bm_t cbmmod = cbm_to_modifier(cbmcode);
-            if (cbmmod)
-            { // modifier key
-                modifier |= cbmmod;
-                modifier_locked = true;
-                kb_scan[cbmcode].sent = true;
-            }
-            else
-            { // regular key
+            if (!cbm_to_modifier(cbmcode)) // regular keys only
+            {
                 // check for phantom state
                 if (code_count >= 6)
                 {
                     for (uint idx = 0; idx < 6; idx++)
                         keycode_return[idx] = 1;
-                    return modifier;
+                    return 0;
                 }
-                // Pressing + and - simultaneously needs to send a shift
+                // Pressing + and - in the same report period needs to send a shift
                 // for the + and no shift for the -. This is impossible,
                 // so we leave one queued for the next report.
-                if (!modifier_locked || modifier == kb_scan[cbmcode].modifier)
+                hid_keyboard_modifier_bm_t this_modifier = kb_scan[cbmcode].modifier;
+                if (!modifier_locked || modifier == this_modifier)
                 {
-                    modifier = kb_scan[cbmcode].modifier;
-                    modifier_locked = true;
-                    codes[code_count].cbmcode = cbmcode;
-                    codes[code_count].keycode = cbmcode;
-
-                    cbm_translate(&codes[code_count].keycode, &modifier);
-
-                    kb_scan[cbmcode].sent = true;
-                    code_count++;
+                    uint8_t keycode = cbmcode;
+                    cbm_translate(&keycode, &this_modifier);
+                    bool ok = true;
+                    // Pressing ; and ; simultaneously is the same key with
+                    // different shift states. When this is detected, release
+                    // the held key so it can be repressed in the next repoort.
+                    for (uint i = 0; i < 6; i++)
+                    {
+                        if (codes[i].keycode == keycode)
+                        {
+                            for (uint j = i; j < 5; j++)
+                                codes[j] = codes[j + 1];
+                            codes[5].keycode = 0;
+                            --code_count;
+                            ok = false;
+                        }
+                    }
+                    if (ok)
+                    {
+                        modifier = this_modifier;
+                        modifier_locked = true;
+                        codes[code_count].cbmcode = cbmcode;
+                        codes[code_count].keycode = keycode;
+                        kb_scan[cbmcode].sent = true;
+                        code_count++;
+                    }
                 }
             }
         }
     }
 
-    // Recompute modifier when no regular keys are pressed
-    if (!code_count)
+    // Recompute modifier when only modifiers are pressed.
+    // C= is HID_KEY_TAB and treated as a modifier here.
+    if (!modifier_locked &&
+        (!code_count ||
+         (code_count == 1 && codes[0].keycode == HID_KEY_TAB)))
     {
         modifier = 0;
         for (uint idx = 0; idx < 65; idx++)
@@ -401,6 +398,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                 modifier |= cbm_to_modifier(idx);
     }
 
+    // Return new report
     for (uint idx = 0; idx < 6; idx++)
         keycode_return[idx] = codes[idx].keycode;
     return modifier;
