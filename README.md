@@ -43,7 +43,8 @@ The exceptions are as follows:
 ```
 C= ............. Tab
 RUN/STOP ....... ESC
-L.Arrow ........ Backspace
+DEL ............ Backspace
+L.Arrow ........ Delete
 U.Arrow ........ Circumflex "^"
 SHIFT + ........ Page Up
 SHIFT - ........ Page Down
