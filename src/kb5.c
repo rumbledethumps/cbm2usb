@@ -8,7 +8,7 @@
 #include "tusb.h"
 
 // Debounce and ghost detection added.
-// Keycode mapping good for both ASCII and VICE.
+// Keycode mappings for ASCII, VICE, and MiSTer.
 
 #define KB_CAS_US 6
 #define KB_SCAN_INTERVAL_US 200
@@ -18,125 +18,175 @@
 #define KB_GHOST_TICKS ((KB_GHOST_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
 #define KB_DEBOUNCE_TICKS ((KB_DEBOUNCE_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
 
+// Until MiSTer allows for custom remapping, we do a toggle.
+// The global keyboard remapping will not do what we need.
+static bool is_mister = false; // can be true if you prefer
+
 static struct
 {
     uint8_t status;   // 0=open, 1=pressed, 2-255=ghost
     uint8_t debounce; // countdown to 0
     bool sent;
     hid_keyboard_modifier_bm_t modifier;
-} kb_scan[65];
+} cbm_scan[65];
 
+// This is the positional mapping used by MiSTer.
+// These keycodes are unique to how the Pi Pico is wired and scanned.
 static const uint8_t CBM_TO_KEYCODE[] = {
-    HID_KEY_1, HID_KEY_DELETE, HID_KEY_CONTROL_LEFT, HID_KEY_ESCAPE,           // 0-3
-    HID_KEY_SPACE, HID_KEY_TAB, HID_KEY_Q, HID_KEY_2,                          // 4-7
-    HID_KEY_3, HID_KEY_W, HID_KEY_A, HID_KEY_SHIFT_LEFT,                       // 8-11
-    HID_KEY_Z, HID_KEY_S, HID_KEY_E, HID_KEY_4,                                // 12-15
-    HID_KEY_5, HID_KEY_R, HID_KEY_D, HID_KEY_X,                                // 16-19
-    HID_KEY_C, HID_KEY_F, HID_KEY_T, HID_KEY_6,                                // 20-23
-    HID_KEY_7, HID_KEY_Y, HID_KEY_G, HID_KEY_V,                                // 24-27
-    HID_KEY_B, HID_KEY_H, HID_KEY_U, HID_KEY_8,                                // 28-31
-    HID_KEY_9, HID_KEY_I, HID_KEY_J, HID_KEY_N,                                // 32-35
-    HID_KEY_M, HID_KEY_K, HID_KEY_O, HID_KEY_0,                                // 36-39
-    HID_KEY_EQUAL, HID_KEY_P, HID_KEY_L, HID_KEY_COMMA,                        // 40-43
-    HID_KEY_PERIOD, HID_KEY_SEMICOLON, HID_KEY_BRACKET_LEFT, HID_KEY_MINUS,    // 44-47
-    HID_KEY_GRAVE, HID_KEY_BRACKET_RIGHT, HID_KEY_APOSTROPHE, HID_KEY_SLASH,   // 48-51
-    HID_KEY_SHIFT_RIGHT, HID_KEY_PAGE_DOWN, HID_KEY_PAGE_UP, HID_KEY_HOME,     // 52-55
-    HID_KEY_BACKSPACE, HID_KEY_ENTER, HID_KEY_ARROW_RIGHT, HID_KEY_ARROW_DOWN, // 56-59
-    HID_KEY_F1, HID_KEY_F3, HID_KEY_F5, HID_KEY_F7,                            // 60-63
-    HID_KEY_BACKSLASH                                                          // 64 (RESTORE)
+    HID_KEY_1, HID_KEY_GRAVE, HID_KEY_CONTROL_LEFT, HID_KEY_ESCAPE,              // 0-3
+    HID_KEY_SPACE, HID_KEY_ALT_LEFT, HID_KEY_Q, HID_KEY_2,                       // 4-7
+    HID_KEY_3, HID_KEY_W, HID_KEY_A, HID_KEY_SHIFT_LEFT,                         // 8-11
+    HID_KEY_Z, HID_KEY_S, HID_KEY_E, HID_KEY_4,                                  // 12-15
+    HID_KEY_5, HID_KEY_R, HID_KEY_D, HID_KEY_X,                                  // 16-19
+    HID_KEY_C, HID_KEY_F, HID_KEY_T, HID_KEY_6,                                  // 20-23
+    HID_KEY_7, HID_KEY_Y, HID_KEY_G, HID_KEY_V,                                  // 24-27
+    HID_KEY_B, HID_KEY_H, HID_KEY_U, HID_KEY_8,                                  // 28-31
+    HID_KEY_9, HID_KEY_I, HID_KEY_J, HID_KEY_N,                                  // 32-35
+    HID_KEY_M, HID_KEY_K, HID_KEY_O, HID_KEY_0,                                  // 36-39
+    HID_KEY_MINUS, HID_KEY_P, HID_KEY_L, HID_KEY_COMMA,                          // 40-43
+    HID_KEY_PERIOD, HID_KEY_SEMICOLON, HID_KEY_BRACKET_LEFT, HID_KEY_EQUAL,      // 44-47
+    HID_KEY_BACKSLASH, HID_KEY_BRACKET_RIGHT, HID_KEY_APOSTROPHE, HID_KEY_SLASH, // 48-51
+    HID_KEY_SHIFT_RIGHT, HID_KEY_END, HID_KEY_PAGE_DOWN, HID_KEY_HOME,           // 52-55
+    HID_KEY_DELETE, HID_KEY_ENTER, HID_KEY_ARROW_RIGHT, HID_KEY_ARROW_DOWN,      // 56-59
+    HID_KEY_F1, HID_KEY_F3, HID_KEY_F5, HID_KEY_F7,                              // 60-63
+    HID_KEY_F11                                                                  // 64
 };
+// All the keys except letters
+#define CBM_KEY_0 39
+#define CBM_KEY_1 0
+#define CBM_KEY_2 7
+#define CBM_KEY_3 8
+#define CBM_KEY_4 15
+#define CBM_KEY_5 16
+#define CBM_KEY_6 23
+#define CBM_KEY_7 24
+#define CBM_KEY_8 31
+#define CBM_KEY_9 32
+#define CBM_KEY_ARROW_LEFT 1
+#define CBM_KEY_CONTROL_LEFT 2
+#define CBM_KEY_RUN_STOP 3
+#define CBM_KEY_SPACE 4
+#define CBM_KEY_CBM 5 // C= key
+#define CBM_KEY_SHIFT_LEFT 11
+#define CBM_KEY_PLUS 40
+#define CBM_KEY_COMMA 43
+#define CBM_KEY_PERIOD 44
+#define CBM_KEY_COLON 45
+#define CBM_KEY_COMMERCIAL_AT 46
+#define CBM_KEY_MINUS 47
+#define CBM_KEY_STERLING 48
+#define CBM_KEY_ASTERISK 49
+#define CBM_KEY_SEMICOLON 50
+#define CBM_KEY_SLASH 51
+#define CBM_KEY_SHIFT_RIGHT 52
+#define CBM_KEY_EQUAL 53
+#define CBM_KEY_ARROW_UP 54
+#define CBM_KEY_HOME 55
+#define CBM_KEY_DEL 56
+#define CBM_KEY_RETURN 57
+#define CBM_KEY_CRSR_RIGHT 58
+#define CBM_KEY_CRSR_DOWN 59
+#define CBM_KEY_F1 60
+#define CBM_KEY_F3 61
+#define CBM_KEY_F5 62
+#define CBM_KEY_F7 63
+#define CBM_KEY_RESTORE 64
 
 // Translate CBM code into USB HID keyboard modifier bitmap
 hid_keyboard_modifier_bm_t cbm_to_modifier(uint8_t cbmcode)
 {
     uint8_t keycode = CBM_TO_KEYCODE[cbmcode];
+    if (!is_mister && keycode == HID_KEY_ALT_LEFT)
+        return 0;
     if (keycode >= HID_KEY_CONTROL_LEFT && keycode <= HID_KEY_GUI_RIGHT)
         return 1 << (keycode & 7);
     return 0;
 }
 
 // Translate CBM code into USB HID keyboard code
-// These overrides makes the C64 keyboard suitable for ASCII.
 void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
 {
     uint8_t cbmcode = *code;
     *code = CBM_TO_KEYCODE[cbmcode];
+    if (is_mister)
+        return;
+    // These overrides makes the C64 keyboard suitable for ASCII.
     const hid_keyboard_modifier_bm_t SHIFT =
         KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;
     if (*modifier & SHIFT)
         switch (cbmcode)
         {
-        case 7: // Shift 2 quote
+        case CBM_KEY_2: // "
             *code = HID_KEY_APOSTROPHE;
             break;
-        case 23: // Shift 6 ampersand
+        case CBM_KEY_6: // &
             *code = HID_KEY_7;
             break;
-        case 24: // Shift 7 apostrophe
-            *modifier &= ~SHIFT;
+        case CBM_KEY_7: // '
             *code = HID_KEY_APOSTROPHE;
+            *modifier &= ~SHIFT;
             break;
-        case 31: // Shift 8 L paren
+        case CBM_KEY_8: // (
             *code = HID_KEY_9;
             break;
-        case 32: // Shift 9 R paren
+        case CBM_KEY_9: // )
             *code = HID_KEY_0;
             break;
-        case 39: // Shift 0
+        case CBM_KEY_0:
             *code = HID_KEY_F12;
             *modifier &= ~SHIFT;
             break;
-        case 40: // Shift Plus
-            *modifier &= ~SHIFT;
+        case CBM_KEY_PLUS:
             *code = HID_KEY_PAGE_UP;
-            break;
-        case 47: // Shift Minus
             *modifier &= ~SHIFT;
+            break;
+        case CBM_KEY_MINUS:
             *code = HID_KEY_PAGE_DOWN;
-            break;
-        case 45: // Shift @ L bracket
             *modifier &= ~SHIFT;
+            break;
+        case CBM_KEY_COLON:
             *code = HID_KEY_BRACKET_LEFT;
-            break;
-        case 48: // Shift Sterling Pound underbar
-            *code = HID_KEY_MINUS;
-            break;
-        case 50: // Shift * R Bracket
             *modifier &= ~SHIFT;
+            break;
+        case CBM_KEY_STERLING:
+            *code = HID_KEY_MINUS; // _
+            break;
+        case CBM_KEY_SEMICOLON:
             *code = HID_KEY_BRACKET_RIGHT;
-            break;
-        case 54: // Shift up arrow tilde
-            *code = HID_KEY_GRAVE;
-            break;
-        case 55: // Shift CLR/HOME -> END
             *modifier &= ~SHIFT;
+            break;
+        case CBM_KEY_ARROW_UP:
+            *code = HID_KEY_GRAVE; // ~
+            break;
+        case CBM_KEY_HOME:
             *code = HID_KEY_END;
-            break;
-        case 56: // Shift INST/DEL
             *modifier &= ~SHIFT;
-            *code = HID_KEY_INSERT;
             break;
-        case 58: // Shift CRSR LEFT/RIGHT
+        case CBM_KEY_DEL:
+            *code = HID_KEY_INSERT;
+            *modifier &= ~SHIFT;
+            break;
+        case CBM_KEY_CRSR_RIGHT:
             *code = HID_KEY_ARROW_LEFT;
             *modifier &= ~SHIFT;
             break;
-        case 59: // Shift CRSR UP/DOWN
+        case CBM_KEY_CRSR_DOWN:
             *code = HID_KEY_ARROW_UP;
             *modifier &= ~SHIFT;
             break;
-        case 60: // Shift F1/F2
+        case CBM_KEY_F1:
             *code = HID_KEY_F2;
             *modifier &= ~SHIFT;
             break;
-        case 61: // Shift F3/F4
+        case CBM_KEY_F3:
             *code = HID_KEY_F4;
             *modifier &= ~SHIFT;
             break;
-        case 62: // Shift F5/F6
+        case CBM_KEY_F5:
             *code = HID_KEY_F6;
             *modifier &= ~SHIFT;
             break;
-        case 63: // Shift F7/F8
+        case CBM_KEY_F7:
             *code = HID_KEY_F8;
             *modifier &= ~SHIFT;
             break;
@@ -144,33 +194,52 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
     else // Not SHIFT
         switch (cbmcode)
         {
-        case 40: // Plus
+        case CBM_KEY_PLUS:
+            *code = HID_KEY_EQUAL;
             *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
             break;
-        case 45: // Colon
-            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+        case CBM_KEY_MINUS:
+            *code = HID_KEY_MINUS;
+            break;
+        case CBM_KEY_COLON:
             *code = HID_KEY_SEMICOLON;
-            break;
-        case 46: // @
             *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+            break;
+        case CBM_KEY_COMMERCIAL_AT:
             *code = HID_KEY_2;
-            break;
-        case 49: // *
             *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
-            *code = HID_KEY_8;
             break;
-        case 50: // Semicolon
+        case CBM_KEY_STERLING:
+            *code = HID_KEY_GRAVE;
+            break;
+        case CBM_KEY_ASTERISK:
+            *code = HID_KEY_8;
+            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+            break;
+        case CBM_KEY_SEMICOLON:
             *code = HID_KEY_SEMICOLON;
             break;
-        case 54: // Up arrow carat
-            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+        case CBM_KEY_ARROW_UP: // ^
             *code = HID_KEY_6;
+            *modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+            break;
+        case CBM_KEY_DEL:
+            *code = HID_KEY_BACKSPACE;
             break;
         }
-    // Equal key is the only one without a SHIFT state.
+    // Overrides for both SHIFT states.
     switch (cbmcode)
     {
-    case 53: // Equal
+    case CBM_KEY_ARROW_LEFT:
+        *code = HID_KEY_DELETE;
+        break;
+    case CBM_KEY_CBM:
+        *code = HID_KEY_TAB;
+        break;
+    case CBM_KEY_RESTORE:
+        *code = HID_KEY_BACKSLASH;
+        break;
+    case CBM_KEY_EQUAL:
         *code = HID_KEY_EQUAL;
         *modifier &= ~SHIFT;
         break;
@@ -179,22 +248,22 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
 
 static void set_kb_scan(uint idx, bool is_up)
 {
-    if (kb_scan[idx].debounce)
-        --kb_scan[idx].debounce;
+    if (cbm_scan[idx].debounce)
+        --cbm_scan[idx].debounce;
     if (is_up)
     {
-        if (!kb_scan[idx].debounce)
+        if (!cbm_scan[idx].debounce)
         {
-            kb_scan[idx].status = 0;
-            kb_scan[idx].sent = false;
+            cbm_scan[idx].status = 0;
+            cbm_scan[idx].sent = false;
         }
     }
     else
     {
-        if (!kb_scan[idx].status)
+        if (!cbm_scan[idx].status)
         {
-            kb_scan[idx].status = 1 + KB_GHOST_TICKS;
-            kb_scan[idx].debounce = KB_DEBOUNCE_TICKS;
+            cbm_scan[idx].status = 1 + KB_GHOST_TICKS;
+            cbm_scan[idx].debounce = KB_DEBOUNCE_TICKS;
         }
     }
 }
@@ -260,11 +329,11 @@ void kb_task()
             set_kb_scan(idx, row_data & (1u << row));
 
             // current modifier ignores ghosted keys
-            if (kb_scan[idx].status == 1)
+            if (cbm_scan[idx].status == 1)
                 modifier |= cbm_to_modifier(idx);
 
             // population count includes ghosted and bouncing keys
-            if (kb_scan[idx].status)
+            if (cbm_scan[idx].status)
             {
                 ++kb_col_pop[col];
                 ++kb_row_pop[row];
@@ -273,11 +342,11 @@ void kb_task()
     }
 
     // RESTORE key is not in matrix
-    set_kb_scan(64, gpio_get(18));
-    if (kb_scan[64].status > 1)
+    set_kb_scan(CBM_KEY_RESTORE, gpio_get(18));
+    if (cbm_scan[CBM_KEY_RESTORE].status > 1)
     {
-        kb_scan[64].status = 1;
-        kb_scan[64].modifier = modifier;
+        cbm_scan[CBM_KEY_RESTORE].status = 1;
+        cbm_scan[CBM_KEY_RESTORE].modifier = modifier;
     }
 
     // use pop count to find ghosted keys
@@ -286,16 +355,16 @@ void kb_task()
         for (uint row = 0; row < 8; row++)
         {
             uint idx = row * 8 + col;
-            if (kb_scan[idx].status > 1)
+            if (cbm_scan[idx].status > 1)
                 if (kb_col_pop[col] > 1 && kb_row_pop[row] > 1)
                 {
-                    if (kb_scan[idx].debounce)
-                        kb_scan[idx].status = 1 + KB_GHOST_TICKS;
-                    else if (kb_scan[idx].status > 2)
-                        --kb_scan[idx].status;
+                    if (cbm_scan[idx].debounce)
+                        cbm_scan[idx].status = 1 + KB_GHOST_TICKS;
+                    else if (cbm_scan[idx].status > 2)
+                        --cbm_scan[idx].status;
                 }
-                else if (--kb_scan[idx].status == 1)
-                    kb_scan[idx].modifier = modifier;
+                else if (--cbm_scan[idx].status == 1)
+                    cbm_scan[idx].modifier = modifier;
         }
     }
 }
@@ -318,7 +387,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
         if (!codes[code_count].keycode)
             break;
         if (codes[code_count].keycode >= HID_KEY_A &&
-            kb_scan[codes[code_count].cbmcode].status != 1)
+            cbm_scan[codes[code_count].cbmcode].status != 1)
         {
             for (uint j = code_count; j < 5; j++)
                 codes[j] = codes[j + 1];
@@ -331,7 +400,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
     // move keys out of queue
     for (uint cbmcode = 0; cbmcode < 65; cbmcode++)
     {
-        if (kb_scan[cbmcode].status == 1 && !kb_scan[cbmcode].sent)
+        if (cbm_scan[cbmcode].status == 1 && !cbm_scan[cbmcode].sent)
         {
             if (!cbm_to_modifier(cbmcode)) // regular keys only
             {
@@ -345,7 +414,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                 // Pressing + and - in the same report period needs to send a shift
                 // for the + and no shift for the -. This is impossible,
                 // so we leave one queued for the next report.
-                hid_keyboard_modifier_bm_t this_modifier = kb_scan[cbmcode].modifier;
+                hid_keyboard_modifier_bm_t this_modifier = cbm_scan[cbmcode].modifier;
                 if (!modifier_locked || modifier == this_modifier)
                 {
                     uint8_t keycode = cbmcode;
@@ -371,7 +440,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                         modifier_locked = true;
                         codes[code_count].cbmcode = cbmcode;
                         codes[code_count].keycode = keycode;
-                        kb_scan[cbmcode].sent = true;
+                        cbm_scan[cbmcode].sent = true;
                         code_count++;
                     }
                 }
@@ -380,19 +449,28 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
     }
 
     // Recompute modifier when only modifiers are pressed.
-    // C= is HID_KEY_TAB and treated as a modifier here.
+    // C= is treated as a modifier here.
     if (!modifier_locked &&
         (!code_count ||
-         (code_count == 1 && codes[0].keycode == HID_KEY_TAB)))
+         (code_count == 1 && codes[0].cbmcode == CBM_KEY_CBM)))
     {
         modifier = 0;
         for (uint idx = 0; idx < 65; idx++)
-            if (kb_scan[idx].status == 1)
+            if (cbm_scan[idx].status == 1)
                 modifier |= cbm_to_modifier(idx);
     }
 
     // Return new report
     for (uint idx = 0; idx < 6; idx++)
         keycode_return[idx] = codes[idx].keycode;
+
+    // TODO CTRL-C= things
+    if (code_count == 2 &&
+        (modifier & KEYBOARD_MODIFIER_LEFTCTRL) &&
+        codes[0].cbmcode == CBM_KEY_CBM)
+    {
+        // printf("%d %d\n", codes[1].cbmcode, codes[1].keycode);
+    }
+
     return modifier;
 }
