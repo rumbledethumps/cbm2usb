@@ -19,10 +19,10 @@
 #define KB_DEBOUNCE_TICKS ((KB_DEBOUNCE_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
 
 // Until MiSTer allows for custom remapping, we do a toggle.
-// The global keyboard remapping will not do what we need.
+// MiSTer global keyboard remapping will not do what we need.
 static bool is_mister = false; // can be true if you prefer
 
-static struct
+static struct cbm_scan
 {
     uint8_t status;   // 0=open, 1=pressed, 2-255=ghost
     uint8_t debounce; // countdown to 0
@@ -30,9 +30,9 @@ static struct
     hid_keyboard_modifier_bm_t modifier;
 } cbm_scan[65];
 
-// This is the positional mapping used by MiSTer.
+// Default keycode translations are the positional mapping used by MiSTer.
 // These keycodes are unique to how the Pi Pico is wired and scanned.
-static const uint8_t CBM_TO_KEYCODE[] = {
+static const uint8_t CBM_TO_HID[] = {
     HID_KEY_1, HID_KEY_GRAVE, HID_KEY_CONTROL_LEFT, HID_KEY_ESCAPE,              // 0-3
     HID_KEY_SPACE, HID_KEY_ALT_LEFT, HID_KEY_Q, HID_KEY_2,                       // 4-7
     HID_KEY_3, HID_KEY_W, HID_KEY_A, HID_KEY_SHIFT_LEFT,                         // 8-11
@@ -52,7 +52,6 @@ static const uint8_t CBM_TO_KEYCODE[] = {
     HID_KEY_F11                                                                  // 64
 };
 // All the keys except letters
-#define CBM_KEY_0 39
 #define CBM_KEY_1 0
 #define CBM_KEY_2 7
 #define CBM_KEY_3 8
@@ -62,6 +61,7 @@ static const uint8_t CBM_TO_KEYCODE[] = {
 #define CBM_KEY_7 24
 #define CBM_KEY_8 31
 #define CBM_KEY_9 32
+#define CBM_KEY_0 39
 #define CBM_KEY_ARROW_LEFT 1
 #define CBM_KEY_CONTROL_LEFT 2
 #define CBM_KEY_RUN_STOP 3
@@ -93,9 +93,9 @@ static const uint8_t CBM_TO_KEYCODE[] = {
 #define CBM_KEY_RESTORE 64
 
 // Translate CBM code into USB HID keyboard modifier bitmap
-hid_keyboard_modifier_bm_t cbm_to_modifier(uint8_t cbmcode)
+static hid_keyboard_modifier_bm_t cbm_to_modifier(uint8_t cbmcode)
 {
-    uint8_t keycode = CBM_TO_KEYCODE[cbmcode];
+    uint8_t keycode = CBM_TO_HID[cbmcode];
     if (!is_mister && keycode == HID_KEY_ALT_LEFT)
         return 0;
     if (keycode >= HID_KEY_CONTROL_LEFT && keycode <= HID_KEY_GUI_RIGHT)
@@ -103,14 +103,11 @@ hid_keyboard_modifier_bm_t cbm_to_modifier(uint8_t cbmcode)
     return 0;
 }
 
-// Translate CBM code into USB HID keyboard code
-void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
+// These overrides makes the C64 keyboard suitable for ASCII.
+static void cbm_translate_ascii(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
 {
     uint8_t cbmcode = *code;
-    *code = CBM_TO_KEYCODE[cbmcode];
-    if (is_mister)
-        return;
-    // These overrides makes the C64 keyboard suitable for ASCII.
+    *code = CBM_TO_HID[cbmcode];
     const hid_keyboard_modifier_bm_t SHIFT =
         KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;
     if (*modifier & SHIFT)
@@ -244,6 +241,36 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
         *modifier &= ~SHIFT;
         break;
     }
+}
+
+static void cbm_translate_mister(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
+{
+    uint8_t cbmcode = *code;
+    *code = CBM_TO_HID[cbmcode];
+    const hid_keyboard_modifier_bm_t SHIFT =
+        KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;
+    if (*modifier & SHIFT)
+        switch (cbmcode)
+        {
+        case CBM_KEY_6: // &
+            *code = HID_KEY_7;
+            break;
+        case CBM_KEY_7: // '
+            *code = HID_KEY_6;
+            break;
+        case CBM_KEY_8: // (
+            *code = HID_KEY_9;
+            break;
+        case CBM_KEY_9: // )
+            *code = HID_KEY_0;
+            break;
+        // SHIFT-0 is impossible to send to MiSTer
+        // so it's perfect for the MiSTer OSD button
+        case CBM_KEY_0:
+            *code = HID_KEY_F12;
+            *modifier &= ~SHIFT;
+            break;
+        }
 }
 
 static void set_kb_scan(uint idx, bool is_up)
@@ -418,7 +445,10 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                 if (!modifier_locked || modifier == this_modifier)
                 {
                     uint8_t keycode = cbmcode;
-                    cbm_translate(&keycode, &this_modifier);
+                    if (is_mister)
+                        cbm_translate_mister(&keycode, &this_modifier);
+                    else
+                        cbm_translate_ascii(&keycode, &this_modifier);
                     bool ok = true;
                     // Pressing ; and ; simultaneously is the same key with
                     // different shift states. When this is detected, release
@@ -460,17 +490,38 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                 modifier |= cbm_to_modifier(idx);
     }
 
+    // CTRL C= overrides for ASCII mode
+    // ASCII mode
+    if (code_count == 2 &&
+        modifier & KEYBOARD_MODIFIER_LEFTCTRL &&
+        codes[0].cbmcode == CBM_KEY_CBM)
+        switch (codes[1].cbmcode)
+        {
+        case CBM_KEY_STERLING:
+            is_mister = true;
+            break;
+        case CBM_KEY_DEL:
+            modifier |= KEYBOARD_MODIFIER_LEFTALT;
+            codes[1].keycode = HID_KEY_DELETE;
+            break;
+        }
+    // MiSTer mode
+    if (code_count == 1 &&
+        modifier & KEYBOARD_MODIFIER_LEFTCTRL &&
+        modifier & KEYBOARD_MODIFIER_LEFTALT)
+        switch (codes[0].cbmcode)
+        {
+        case CBM_KEY_STERLING:
+            is_mister = false;
+            break;
+        case CBM_KEY_DEL: // MiSTer User button (reset)
+            codes[0].keycode = HID_KEY_ALT_RIGHT;
+            modifier |= KEYBOARD_MODIFIER_RIGHTALT;
+            break;
+        }
+
     // Return new report
     for (uint idx = 0; idx < 6; idx++)
         keycode_return[idx] = codes[idx].keycode;
-
-    // TODO CTRL-C= things
-    if (code_count == 2 &&
-        (modifier & KEYBOARD_MODIFIER_LEFTCTRL) &&
-        codes[0].cbmcode == CBM_KEY_CBM)
-    {
-        // printf("%d %d\n", codes[1].cbmcode, codes[1].keycode);
-    }
-
     return modifier;
 }

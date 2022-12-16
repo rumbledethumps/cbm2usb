@@ -24,7 +24,7 @@ static struct
     uint8_t debounce; // countdown to 0
 } kb_scan[65];
 
-static const uint8_t CBM_TO_KEYCODE[] = {
+static const uint8_t CBM_TO_HID[] = {
     HID_KEY_1, HID_KEY_GRAVE, HID_KEY_CONTROL_LEFT, HID_KEY_ESCAPE,              // 0-3
     HID_KEY_SPACE, HID_KEY_ALT_LEFT, HID_KEY_Q, HID_KEY_2,                       // 4-7
     HID_KEY_3, HID_KEY_W, HID_KEY_A, HID_KEY_SHIFT_LEFT,                         // 8-11
@@ -164,7 +164,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode[6])
         if (kb_scan[idx].status == 1)
         {
             if (code_count < 6)
-                keycode[code_count] = CBM_TO_KEYCODE[idx];
+                keycode[code_count] = CBM_TO_HID[idx];
             else // phantom condition
                 keycode[0] = keycode[1] = keycode[2] =
                     keycode[3] = keycode[4] = keycode[5] = 1;

@@ -26,7 +26,7 @@ static struct
     hid_keyboard_modifier_bm_t modifier;
 } kb_scan[65];
 
-static const uint8_t CBM_TO_KEYCODE[] = {
+static const uint8_t CBM_TO_HID[] = {
     HID_KEY_1, HID_KEY_DELETE, HID_KEY_CONTROL_LEFT, HID_KEY_ESCAPE,           // 0-3
     HID_KEY_SPACE, HID_KEY_TAB, HID_KEY_Q, HID_KEY_2,                          // 4-7
     HID_KEY_3, HID_KEY_W, HID_KEY_A, HID_KEY_SHIFT_LEFT,                       // 8-11
@@ -49,7 +49,7 @@ static const uint8_t CBM_TO_KEYCODE[] = {
 // Translate CBM code into USB HID keyboard modifier bitmap
 hid_keyboard_modifier_bm_t cbm_to_modifier(uint8_t cbmcode)
 {
-    uint8_t keycode = CBM_TO_KEYCODE[cbmcode];
+    uint8_t keycode = CBM_TO_HID[cbmcode];
     if (keycode >= HID_KEY_CONTROL_LEFT && keycode <= HID_KEY_GUI_RIGHT)
         return 1 << (keycode & 7);
     return 0;
@@ -60,7 +60,7 @@ hid_keyboard_modifier_bm_t cbm_to_modifier(uint8_t cbmcode)
 void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
 {
     uint8_t cbmcode = *code;
-    *code = CBM_TO_KEYCODE[cbmcode];
+    *code = CBM_TO_HID[cbmcode];
     const hid_keyboard_modifier_bm_t SHIFT =
         KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;
     if (*modifier & SHIFT)

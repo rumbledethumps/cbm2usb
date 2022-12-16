@@ -11,7 +11,7 @@
 
 uint8_t kb_scan[8];
 
-static const uint8_t CBM_TO_KEYCODE[] = {
+static const uint8_t CBM_TO_HID[] = {
     HID_KEY_1, HID_KEY_GRAVE, HID_KEY_CONTROL_LEFT, HID_KEY_ESCAPE,              // 0-3
     HID_KEY_SPACE, HID_KEY_ALT_LEFT, HID_KEY_Q, HID_KEY_2,                       // 4-7
     HID_KEY_3, HID_KEY_W, HID_KEY_A, HID_KEY_SHIFT_LEFT,                         // 8-11
@@ -88,7 +88,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode[6])
     size_t code_count = 0;
 
     if (!gpio_get(18)) // RESTORE key
-        keycode[code_count++] = CBM_TO_KEYCODE[64];
+        keycode[code_count++] = CBM_TO_HID[64];
 
     for (uint col = 0; col < 8; col++)
     {
@@ -100,7 +100,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode[6])
                 if (code_count < 6)
                 {
                     // 3 keycodes is ok, >=4 may be a decode error
-                    uint8_t code = CBM_TO_KEYCODE[row * 8 + col];
+                    uint8_t code = CBM_TO_HID[row * 8 + col];
                     keycode[code_count] = code;
                 }
                 else

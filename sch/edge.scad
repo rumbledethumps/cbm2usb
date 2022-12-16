@@ -9,8 +9,10 @@ $fn = 64;
 
 
 difference() {
-    block(150);
-    cutter(150);
+     length = 150.5;
+    
+    block(length);
+    cutter(length);
 
     translate([6.25,2.5,34])
     rotate([90,0,0])
@@ -24,15 +26,15 @@ difference() {
     rotate([90,0,0])
     cylinder(h=6, d=9);
 
-    translate([6.25,2.5,150-34])
+    translate([6.25,2.5,length-34])
     rotate([90,0,0])
     cylinder(h=6, d=10.5);
 
-    translate([6.25,3.0,150-34])
+    translate([6.25,3.0,length-34])
     rotate([90,0,0])
     cylinder(h=6, d=10);
 
-    translate([6.25,3.5,150-34])
+    translate([6.25,3.5,length-34])
     rotate([90,0,0])
     cylinder(h=6, d=9);
 
@@ -40,8 +42,9 @@ difference() {
 
 translate([50,0,0])
 difference() {
-    block(384/2);
-    cutter(384/2);
+    length = 385.5;
+    block(length/2);
+    cutter(length/2);
 }
 
 module cutter(length) {
