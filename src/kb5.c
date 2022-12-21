@@ -43,8 +43,8 @@ static const uint8_t CBM_TO_HID[] = {
     HID_KEY_B, HID_KEY_H, HID_KEY_U, HID_KEY_8,                                  // 28-31
     HID_KEY_9, HID_KEY_I, HID_KEY_J, HID_KEY_N,                                  // 32-35
     HID_KEY_M, HID_KEY_K, HID_KEY_O, HID_KEY_0,                                  // 36-39
-    HID_KEY_MINUS, HID_KEY_P, HID_KEY_L, HID_KEY_COMMA,                          // 40-43
-    HID_KEY_PERIOD, HID_KEY_SEMICOLON, HID_KEY_BRACKET_LEFT, HID_KEY_EQUAL,      // 44-47
+    HID_KEY_EQUAL, HID_KEY_P, HID_KEY_L, HID_KEY_COMMA,                          // 40-43
+    HID_KEY_PERIOD, HID_KEY_SEMICOLON, HID_KEY_BRACKET_LEFT, HID_KEY_MINUS,      // 44-47
     HID_KEY_BACKSLASH, HID_KEY_BRACKET_RIGHT, HID_KEY_APOSTROPHE, HID_KEY_SLASH, // 48-51
     HID_KEY_SHIFT_RIGHT, HID_KEY_END, HID_KEY_PAGE_DOWN, HID_KEY_HOME,           // 52-55
     HID_KEY_DELETE, HID_KEY_ENTER, HID_KEY_ARROW_RIGHT, HID_KEY_ARROW_DOWN,      // 56-59
@@ -108,6 +108,21 @@ static void cbm_translate_ascii(uint8_t *code, hid_keyboard_modifier_bm_t *modif
 {
     uint8_t cbmcode = *code;
     *code = CBM_TO_HID[cbmcode];
+    if (*modifier == (KEYBOARD_MODIFIER_LEFTCTRL |
+                      KEYBOARD_MODIFIER_LEFTSHIFT |
+                      KEYBOARD_MODIFIER_RIGHTSHIFT))
+        switch (cbmcode)
+        {
+        case CBM_KEY_STERLING:
+            *code = HID_KEY_SHIFT_RIGHT;
+            is_mister = true;
+            return;
+        case CBM_KEY_DEL:
+            *modifier = KEYBOARD_MODIFIER_LEFTCTRL | KEYBOARD_MODIFIER_LEFTALT;
+            *code = HID_KEY_DELETE;
+            printf("%d %d\n", *code, *modifier);
+            return;
+        }
     const hid_keyboard_modifier_bm_t SHIFT =
         KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;
     if (*modifier & SHIFT)
@@ -247,6 +262,22 @@ static void cbm_translate_mister(uint8_t *code, hid_keyboard_modifier_bm_t *modi
 {
     uint8_t cbmcode = *code;
     *code = CBM_TO_HID[cbmcode];
+    if (*modifier == (KEYBOARD_MODIFIER_LEFTCTRL |
+                      KEYBOARD_MODIFIER_LEFTSHIFT |
+                      KEYBOARD_MODIFIER_RIGHTSHIFT))
+        switch (cbmcode)
+        {
+        case CBM_KEY_STERLING:
+            *code = HID_KEY_SHIFT_RIGHT;
+            is_mister = false;
+            return;
+        case CBM_KEY_DEL:
+            *modifier = KEYBOARD_MODIFIER_LEFTCTRL |
+                        KEYBOARD_MODIFIER_LEFTALT |
+                        KEYBOARD_MODIFIER_RIGHTALT;
+            *code = HID_KEY_ALT_RIGHT;
+            return;
+        }
     const hid_keyboard_modifier_bm_t SHIFT =
         KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;
     if (*modifier & SHIFT)
@@ -489,36 +520,6 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
             if (cbm_scan[idx].status == 1)
                 modifier |= cbm_to_modifier(idx);
     }
-
-    // CTRL C= overrides for ASCII mode
-    // ASCII mode
-    if (code_count == 2 &&
-        modifier & KEYBOARD_MODIFIER_LEFTCTRL &&
-        codes[0].cbmcode == CBM_KEY_CBM)
-        switch (codes[1].cbmcode)
-        {
-        case CBM_KEY_STERLING:
-            is_mister = true;
-            break;
-        case CBM_KEY_DEL:
-            modifier |= KEYBOARD_MODIFIER_LEFTALT;
-            codes[1].keycode = HID_KEY_DELETE;
-            break;
-        }
-    // MiSTer mode
-    if (code_count == 1 &&
-        modifier & KEYBOARD_MODIFIER_LEFTCTRL &&
-        modifier & KEYBOARD_MODIFIER_LEFTALT)
-        switch (codes[0].cbmcode)
-        {
-        case CBM_KEY_STERLING:
-            is_mister = false;
-            break;
-        case CBM_KEY_DEL: // MiSTer User button (reset)
-            codes[0].keycode = HID_KEY_ALT_RIGHT;
-            modifier |= KEYBOARD_MODIFIER_RIGHTALT;
-            break;
-        }
 
     // Return new report
     for (uint idx = 0; idx < 6; idx++)

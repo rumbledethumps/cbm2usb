@@ -33,14 +33,14 @@ as a keymap for the VIC-20 and C64 emulators in VICE and BMC64.
 Go to Settings > Input devices > Keyboard and assign it to the
 "Symbolic (user)" position.
 
-MiSTer doesn't have a custom keymap option for C64 and VIC-20.
-The keymap is reasonable for use on a modern IBM/ASCII keyboard,
-but isn't very good outside the MiSTer C64 and VIC-20 cores.
-Use CTRL plus the Commodore key plus the British Pound Sterling key
-to swap betweeen MiSTer mode and an ASCII mode for everything else.
+MiSTer doesn't have a custom keymap option for C64 and VIC-20. The only keymap
+available is reasonable for using a modern IBM/ASCII keyboard, but isn't very
+good for using a real CBM keyboard outside the MiSTer C64 and VIC-20 cores.
+Use CTRL plus both SHIFT keys plus the British Pound Sterling key
+to swap betweeen MiSTer mode and ASCII mode.
 
 SHIFT-0 is impossibe to send to MiSTer C64 and VIC-20 cores. Nobody has
-reported needing it so it was picked for F12, which is the menu in BMC64
+reported needing it so it is used for F12, which is the menu in BMC64
 and MiSTer. If you suspect a program needs it, you can easily confirm
 in VICE by adding "F12 4 3 1" to the .vkm file.
 
@@ -50,29 +50,30 @@ The exceptions are as follows:
 
 ## ASCII mode
 ```
-C= ............... Tab
-RUN/STOP ......... ESC
-DEL .............. Backspace
-L.Arrow .......... Delete
-U.Arrow .......... Circumflex "^"
-SHIFT + .......... Page Up
-SHIFT - .......... Page Down
-CLR .............. End
-Sterling ......... Grave "`"
-SHIFT Sterling ... Underbar "_"
-SHIFT @ .......... L.Brace "{"
-SHIFT * .......... R.Brace "}"
-Restore .......... Backslash "\"
-SHIFT Restore .... Vertical bar "|"
-SHIFT 0 .......... F12
-CTRL C= DEL ...... CTRL ALT DEL
-CTRL C= STERLING . Switch to MiSTer mode
+C= .............................. Tab
+RUN/STOP ........................ ESC
+DEL ............................. Backspace
+L.Arrow ......................... Delete
+U.Arrow ......................... Circumflex "^"
+SHIFT U.Arrow ................... Tilde "~"
+SHIFT + ......................... Page Up
+SHIFT - ......................... Page Down
+SHIFT CLR/HOME .................. End
+Sterling ........................ Grave "`"
+SHIFT Sterling .................. Underbar "_"
+SHIFT @ ......................... L.Brace "{"
+SHIFT * ......................... R.Brace "}"
+Restore ......................... Backslash "\"
+SHIFT Restore ................... Vertical bar "|"
+SHIFT 0 ......................... F12
+CTRL L.SHIFT R.SHIFT DEL ........ CTRL ALT DEL
+CTRL L.SHIFT R.SHIFT STERLING ... Switch to MiSTer mode
 ```
 
 ## MiSTer mode
 Commodore 64 and VIC-20 cores only
 ```
-SHIFT 0 .......... F12 - MiSTer OSD button - Menu
-CTRL C= DEL ...... CTRL L-ALT R-ALT - MiSTer User button - Core Reset
-CTRL C= STERLING . Switch to ASCII mode
+SHIFT 0 ......................... F12 - MiSTer OSD button - Menu
+CTRL L.SHIFT R.SHIFT DEL ........ CTRL L-ALT R-ALT - MiSTer User button - Core Reset
+CTRL L.SHIFT R.SHIFT STERLING ... Switch to ASCII mode
 ```
