@@ -177,7 +177,7 @@ void cbm_translate(uint8_t *code, hid_keyboard_modifier_bm_t *modifier)
     }
 }
 
-static void set_kb_scan(uint idx, bool is_up)
+static void set_cbm_scan(uint idx, bool is_up)
 {
     if (kb_scan[idx].debounce)
         --kb_scan[idx].debounce;
@@ -257,7 +257,7 @@ void kb_task()
         for (uint row = 0; row < 8; row++)
         {
             uint idx = row * 8 + col;
-            set_kb_scan(idx, row_data & (1u << row));
+            set_cbm_scan(idx, row_data & (1u << row));
 
             // current modifier ignores ghosted keys
             if (kb_scan[idx].status == 1)
@@ -273,7 +273,7 @@ void kb_task()
     }
 
     // RESTORE key is not in matrix
-    set_kb_scan(64, gpio_get(18));
+    set_cbm_scan(64, gpio_get(18));
     if (kb_scan[64].status > 1)
     {
         kb_scan[64].status = 1;
@@ -350,10 +350,10 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                 {
                     uint8_t keycode = cbmcode;
                     cbm_translate(&keycode, &this_modifier);
-                    bool ok = true;
                     // Pressing ; and ; simultaneously is the same key with
                     // different shift states. When this is detected, release
                     // the held key so it can be repressed in the next repoort.
+                    bool ok = true;
                     for (uint i = 0; i < 6; i++)
                     {
                         if (codes[i].keycode == keycode)

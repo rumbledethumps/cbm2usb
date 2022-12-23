@@ -22,3 +22,8 @@ add_executable(kb5)
 pico_add_extra_outputs(kb5)
 target_link_libraries(kb5 PRIVATE pico_stdlib tinyusb_kb)
 target_sources(kb5 PRIVATE kb5.c)
+
+add_executable(kb6)
+pico_add_extra_outputs(kb6)
+target_link_libraries(kb6 PRIVATE pico_stdlib tinyusb_kb)
+target_sources(kb6 PRIVATE kb6.c)

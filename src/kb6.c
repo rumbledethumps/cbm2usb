@@ -9,6 +9,7 @@
 
 // Debounce and ghost detection added.
 // Keycode mappings for ASCII, VICE, and MiSTer.
+// Includes edge case for CRSR keys.
 
 #define KB_CAS_US 6
 #define KB_SCAN_INTERVAL_US 200
@@ -120,7 +121,6 @@ static void cbm_translate_ascii(uint8_t *code, hid_keyboard_modifier_bm_t *modif
         case CBM_KEY_DEL:
             *modifier = KEYBOARD_MODIFIER_LEFTCTRL | KEYBOARD_MODIFIER_LEFTALT;
             *code = HID_KEY_DELETE;
-            printf("%d %d\n", *code, *modifier);
             return;
         }
     const hid_keyboard_modifier_bm_t SHIFT =
@@ -295,10 +295,16 @@ static void cbm_translate_mister(uint8_t *code, hid_keyboard_modifier_bm_t *modi
         case CBM_KEY_9: // )
             *code = HID_KEY_0;
             break;
-        // SHIFT-0 is impossible to send to MiSTer
-        // so it's perfect for the MiSTer OSD button
         case CBM_KEY_0:
             *code = HID_KEY_F12;
+            *modifier &= ~SHIFT;
+            break;
+        case CBM_KEY_CRSR_RIGHT:
+            *code = HID_KEY_ARROW_LEFT;
+            *modifier &= ~SHIFT;
+            break;
+        case CBM_KEY_CRSR_DOWN:
+            *code = HID_KEY_ARROW_UP;
             *modifier &= ~SHIFT;
             break;
         }
@@ -509,16 +515,37 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
         }
     }
 
-    // Recompute modifier when only modifiers are pressed.
-    // C= is treated as a modifier here.
-    if (!modifier_locked &&
-        (!code_count ||
-         (code_count == 1 && codes[0].cbmcode == CBM_KEY_CBM)))
+    // Recompute modifiers in certain situations.
+    static hid_keyboard_modifier_bm_t previous_modifier = 0;
+    if (!modifier_locked)
     {
-        modifier = 0;
+        hid_keyboard_modifier_bm_t current_modifier = 0;
         for (uint idx = 0; idx < 65; idx++)
             if (cbm_scan[idx].status == 1)
-                modifier |= cbm_to_modifier(idx);
+                current_modifier |= cbm_to_modifier(idx);
+        if (code_count == 0)
+            modifier = current_modifier;
+        if (code_count == 1 && previous_modifier != current_modifier)
+        {
+            previous_modifier = current_modifier;
+            // Changing the SHIFT state while a key is being held down
+            // should usually do nothing, but we need special handling
+            // in a couple of situations unique to the CBM keyboard.
+            switch (codes[0].cbmcode)
+            {
+            // This fixes "C= then SHIFT" when the C= is TAB
+            case CBM_KEY_CBM:
+                modifier = current_modifier;
+                break;
+            // This fixes holding CRSR key while SHIFT changes
+            case CBM_KEY_CRSR_DOWN:
+            case CBM_KEY_CRSR_RIGHT:
+                code_count--;
+                set_cbm_scan(codes[code_count].cbmcode, true);
+                codes[code_count].keycode = 0;
+                break;
+            }
+        }
     }
 
     // Return new report

@@ -76,7 +76,7 @@ void kb_init()
     gpio_set_dir(8, GPIO_OUT);
 }
 
-static void set_kb_scan(uint idx, bool is_up)
+static void set_cbm_scan(uint idx, bool is_up)
 {
     if (kb_scan[idx].debounce)
         --kb_scan[idx].debounce;
@@ -119,7 +119,7 @@ void kb_task()
         for (uint row = 0; row < 8; row++)
         {
             uint idx = row * 8 + col;
-            set_kb_scan(idx, row_data & (1u << row));
+            set_cbm_scan(idx, row_data & (1u << row));
             // population count includes ghosted and bouncing keys
             if (kb_scan[idx].status)
             {
@@ -130,7 +130,7 @@ void kb_task()
     }
 
     // RESTORE key is not in matrix
-    set_kb_scan(64, gpio_get(18));
+    set_cbm_scan(64, gpio_get(18));
     if (kb_scan[64].status > 1)
         kb_scan[64].status = 1;
 
