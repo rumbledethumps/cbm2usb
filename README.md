@@ -1,7 +1,7 @@
 # Commodore 64 and VIC-20 keyboard matrix decoder
 
 Learn more on YouTube:<br>
-TODO url here
+https://youtu.be/kzlCkzl-ei0
 
 This is a C project for the Raspberry Pi Pico or any other RP2040 board.
 DuPont-style breadboard jumpers mate prefectly with the CBM keyboard's

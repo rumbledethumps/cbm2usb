@@ -4,13 +4,9 @@
 
 $fn = 64;
 
-
-//34
-
-
 difference() {
      length = 150.5;
-    
+
     block(length);
     cutter(length);
 
@@ -51,7 +47,7 @@ module cutter(length) {
     difference() {
         translate([-1,-1,-1])
         cube([16,25,length+2]);
-        
+
         translate([14.5,0,-2])
         scale([1,1.29,1])
         cylinder(h=length+4, d=29);
