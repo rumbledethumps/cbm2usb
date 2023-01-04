@@ -26,6 +26,8 @@ The code in `tinyusb_kb` is a quick hack of an example from the TinyUSB
 library. The 10ms rate limiting logic is from there. That's fine for
 typing, but some systems can update every 1ms if we were to let them.
 
+Drawings for 3D printing are in the `sch` folder.
+
 ## Mapping
 
 The default mapping is good for both ASCII and VICE. Use `src/vice.vkm`
@@ -46,25 +48,26 @@ in VICE by adding "F12 4 3 1" to the .vkm file.
 
 Because this is not an ASCII keyboard, some things need a new home.
 If a key has a printable ASCII character, it's typeable as labelled.
-The exceptions are as follows:
 
 ## ASCII mode
 ```
 C= .............................. Tab
 RUN/STOP ........................ ESC
-DEL ............................. Backspace
+INST/DEL ........................ Backspace
+SHIFT INST/DEL .................. Insert
 L.Arrow ......................... Delete
-U.Arrow ......................... Circumflex "^"
-SHIFT U.Arrow ................... Tilde "~"
 SHIFT + ......................... Page Up
 SHIFT - ......................... Page Down
+CLR/HOME ........................ Home
 SHIFT CLR/HOME .................. End
+U.Arrow/Pi ...................... Circumflex "^"
+SHIFT U.Arrow/Pi ................ Tilde "~"
 Sterling ........................ Grave "`"
 SHIFT Sterling .................. Underbar "_"
 SHIFT @ ......................... L.Brace "{"
 SHIFT * ......................... R.Brace "}"
-Restore ......................... Backslash "\"
-SHIFT Restore ................... Vertical bar "|"
+RESTORE ......................... Backslash "\"
+SHIFT RESTORE ................... Vertical bar "|"
 SHIFT 0 ......................... F12
 CTRL L.SHIFT R.SHIFT DEL ........ CTRL ALT DEL
 CTRL L.SHIFT R.SHIFT STERLING ... Switch to MiSTer mode
