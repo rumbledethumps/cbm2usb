@@ -122,6 +122,22 @@ static void cbm_translate_ascii(uint8_t *code, hid_keyboard_modifier_bm_t *modif
             *modifier = KEYBOARD_MODIFIER_LEFTCTRL | KEYBOARD_MODIFIER_LEFTALT;
             *code = HID_KEY_DELETE;
             return;
+        case CBM_KEY_F1:
+            *code = HID_KEY_F9;
+            *modifier = 0;
+            break;
+        case CBM_KEY_F3:
+            *code = HID_KEY_F10;
+            *modifier = 0;
+            break;
+        case CBM_KEY_F5:
+            *code = HID_KEY_F11;
+            *modifier = 0;
+            break;
+        case CBM_KEY_F7:
+            *code = HID_KEY_F12;
+            *modifier = 0;
+            break;
         }
     const hid_keyboard_modifier_bm_t SHIFT =
         KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT;

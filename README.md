@@ -22,9 +22,9 @@ pin 20 to GP0
 The code in `src` is a series of iterations showing how to read a
 keyboard martix without diodes. The final iteration is proper and good.
 
-The code in `tinyusb_kb` is a quick hack of an example from the TinyUSB
-library. The 10ms rate limiting logic is from there. That's fine for
-typing, but some systems can update every 1ms if we were to let them.
+The code in `tinyusb_kb` is boilerplate from the TinyUSB library.
+It's configured for 125 reports/second. MiSTer fast polling won't
+improve this. Yet. Someone just needs to do the work and testing.
 
 Drawings for 3D printing are in the `sch` folder.
 
@@ -71,6 +71,11 @@ SHIFT RESTORE ................... Vertical bar "|"
 SHIFT 0 ......................... F12
 CTRL L.SHIFT R.SHIFT DEL ........ CTRL ALT DEL
 CTRL L.SHIFT R.SHIFT STERLING ... Switch to MiSTer mode
+CTRL L.SHIFT R.SHIFT F1 ......... F9
+CTRL L.SHIFT R.SHIFT F3 ......... F10
+CTRL L.SHIFT R.SHIFT F7 ......... F11
+CTRL L.SHIFT R.SHIFT F9 ......... F12
+
 ```
 
 ## MiSTer mode

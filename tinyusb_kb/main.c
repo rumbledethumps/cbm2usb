@@ -33,25 +33,6 @@
 #include "usb_descriptors.h"
 #include "get_serial.h"
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTYPES
-//--------------------------------------------------------------------+
-
-/* Blink pattern
- * - 250 ms  : device not mounted
- * - 1000 ms : device mounted
- * - 2500 ms : device is suspended
- */
-enum
-{
-    BLINK_NOT_MOUNTED = 250,
-    BLINK_MOUNTED = 1000,
-    BLINK_SUSPENDED = 2500,
-};
-
-static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
-
-void led_blinking_task(void);
 void hid_task(void);
 
 // declares for src/kb*.c
@@ -65,16 +46,12 @@ int main(void)
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     usb_serial_init();
-
-    // init device stack on configured roothub port
     tud_init(BOARD_TUD_RHPORT);
-
     kb_init();
 
     while (1)
     {
-        tud_task(); // tinyusb device task
-        led_blinking_task();
+        tud_task();
         kb_task();
         hid_task();
     }
@@ -83,46 +60,15 @@ int main(void)
 }
 
 //--------------------------------------------------------------------+
-// Device callbacks
-//--------------------------------------------------------------------+
-
-// Invoked when device is mounted
-void tud_mount_cb(void)
-{
-    blink_interval_ms = BLINK_MOUNTED;
-}
-
-// Invoked when device is unmounted
-void tud_umount_cb(void)
-{
-    blink_interval_ms = BLINK_NOT_MOUNTED;
-}
-
-// Invoked when usb bus is suspended
-// remote_wakeup_en : if host allow us  to perform remote wakeup
-// Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
-{
-    (void)remote_wakeup_en;
-    blink_interval_ms = BLINK_SUSPENDED;
-}
-
-// Invoked when usb bus is resumed
-void tud_resume_cb(void)
-{
-    blink_interval_ms = BLINK_MOUNTED;
-}
-
-//--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
 
-// Every 10ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
+// Every 8ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
 // tud_hid_report_complete_cb() is used to send the next report after previous one is complete
 void hid_task(void)
 {
     // Poll every 10ms
-    const uint32_t interval_ms = 10;
+    const uint32_t interval_ms = 8;
     static absolute_time_t start_us = {0};
 
     absolute_time_t now = get_absolute_time();
@@ -146,29 +92,6 @@ void hid_task(void)
         uint8_t modifier = kb_report(keycode);
         tud_hid_n_keyboard_report(ITF_NUM_KEYBOARD, report_id, modifier, keycode);
     }
-}
-
-// Invoked when received SET_PROTOCOL request
-// protocol is either HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
-void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol)
-{
-    (void)instance;
-    (void)protocol;
-
-    // nothing to do since we use the same compatible boot report for both Boot and Report mode.
-    // TOOD set a indicator for user
-}
-
-// Invoked when sent REPORT successfully to host
-// Application can use this to send the next report
-// Note: For composite reports, report[0] is report ID
-void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, /*uint16_t*/ uint8_t len)
-{
-    (void)instance;
-    (void)report;
-    (void)len;
-
-    // nothing to do
 }
 
 // Invoked when received GET_REPORT control request
@@ -206,38 +129,12 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 
             if (kbd_leds & KEYBOARD_LED_CAPSLOCK)
             {
-                // Capslock On: disable blink, turn led on
-                blink_interval_ms = 0;
                 gpio_put(PICO_DEFAULT_LED_PIN, true);
             }
             else
             {
-                // Caplocks Off: back to normal blink
                 gpio_put(PICO_DEFAULT_LED_PIN, false);
-                blink_interval_ms = BLINK_MOUNTED;
             }
         }
     }
-}
-
-//--------------------------------------------------------------------+
-// BLINKING TASK
-//--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
-    static absolute_time_t start_us = {0};
-    static bool led_state = false;
-
-    // blink is disabled
-    if (!blink_interval_ms)
-        return;
-
-    // Blink every interval ms
-    absolute_time_t now = get_absolute_time();
-    if (absolute_time_diff_us(now, start_us) > 0)
-        return;
-    start_us = delayed_by_us(now, blink_interval_ms * 1000);
-
-    gpio_put(PICO_DEFAULT_LED_PIN, led_state);
-    led_state = 1 - led_state; // toggle
 }
