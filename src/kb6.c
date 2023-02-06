@@ -14,7 +14,7 @@
 #define KB_CAS_US 6
 #define KB_SCAN_INTERVAL_US 200
 #define KB_GHOST_US 2000
-#define KB_DEBOUNCE_US 5000
+#define KB_DEBOUNCE_US 100000
 
 #define KB_GHOST_TICKS ((KB_GHOST_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
 #define KB_DEBOUNCE_TICKS ((KB_DEBOUNCE_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
@@ -25,8 +25,8 @@ static bool is_mister = false; // can be true if you prefer
 
 static struct cbm_scan
 {
-    uint8_t status;   // 0=open, 1=pressed, 2-255=ghost
-    uint8_t debounce; // countdown to 0
+    uint16_t status;   // 0=open, 1=pressed, 2+=ghost
+    uint16_t debounce; // countdown to 0
     bool sent;
     hid_keyboard_modifier_bm_t modifier;
 } cbm_scan[65];
