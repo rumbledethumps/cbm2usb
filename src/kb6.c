@@ -543,7 +543,6 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
             modifier = current_modifier;
         if (code_count == 1 && previous_modifier != current_modifier)
         {
-            previous_modifier = current_modifier;
             // Changing the SHIFT state while a key is being held down
             // should usually do nothing, but we need special handling
             // in a couple of situations unique to the CBM keyboard.
@@ -562,6 +561,7 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                 break;
             }
         }
+        previous_modifier = current_modifier;
     }
 
     // Return new report
