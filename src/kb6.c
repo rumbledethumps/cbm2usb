@@ -375,9 +375,6 @@ void kb_init()
         gpio_disable_pulls(i);
         gpio_init(i);
     }
-
-    // activate first column
-    gpio_set_dir(8, GPIO_OUT);
 }
 
 void kb_task()
@@ -396,13 +393,10 @@ void kb_task()
     // read the matrix, one scan of all columns
     for (uint col = 0; col < 8; col++)
     {
+        gpio_set_dir(8 + col, GPIO_OUT);
         busy_wait_us_32(KB_CAS_US);
         uint8_t row_data = gpio_get_all();
         gpio_set_dir(8 + col, GPIO_IN);
-        if (col == 7)
-            gpio_set_dir(8, GPIO_OUT);
-        else
-            gpio_set_dir(9 + col, GPIO_OUT);
         for (uint row = 0; row < 8; row++)
         {
             uint idx = row * 8 + col;
