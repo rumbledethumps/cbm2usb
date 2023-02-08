@@ -15,6 +15,7 @@
 #define KB_SCAN_INTERVAL_US 200
 #define KB_GHOST_US 2000    // safety wait for bouncing ghost keys
 #define KB_DEBOUNCE_US 5000 // key must be up this long to reset
+static_assert(KB_DEBOUNCE_US > KB_GHOST_US);
 
 #define KB_GHOST_TICKS ((KB_GHOST_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
 #define KB_DEBOUNCE_TICKS ((KB_DEBOUNCE_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
@@ -328,21 +329,24 @@ static void cbm_translate_mister(uint8_t *code, hid_keyboard_modifier_bm_t *modi
 
 static void set_cbm_scan(uint idx, bool is_up)
 {
-    if (is_up)
+    if (cbm_scan[idx].debounce)
+        --cbm_scan[idx].debounce;
+    else if (is_up)
     {
-        if (cbm_scan[idx].debounce)
-            --cbm_scan[idx].debounce;
-        else
+        if (cbm_scan[idx].status)
         {
             cbm_scan[idx].status = 0;
             cbm_scan[idx].sent = false;
+            cbm_scan[idx].debounce = KB_DEBOUNCE_TICKS;
         }
     }
     else
     {
-        cbm_scan[idx].debounce = KB_DEBOUNCE_TICKS;
         if (!cbm_scan[idx].status)
+        {
             cbm_scan[idx].status = 1 + KB_GHOST_TICKS;
+            cbm_scan[idx].debounce = KB_DEBOUNCE_TICKS;
+        }
     }
 }
 
