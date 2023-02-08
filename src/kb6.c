@@ -13,8 +13,8 @@
 
 #define KB_CAS_US 6
 #define KB_SCAN_INTERVAL_US 200
-#define KB_GHOST_US 2000
-#define KB_DEBOUNCE_US 100000
+#define KB_GHOST_US 2000    // safety wait for bouncing ghost keys
+#define KB_DEBOUNCE_US 5000 // key must be up this long to reset
 
 #define KB_GHOST_TICKS ((KB_GHOST_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
 #define KB_DEBOUNCE_TICKS ((KB_DEBOUNCE_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
@@ -25,8 +25,8 @@ static bool is_mister = false; // can be true if you prefer
 
 static struct cbm_scan
 {
-    uint16_t status;   // 0=open, 1=pressed, 2+=ghost
-    uint16_t debounce; // countdown to 0
+    uint status;   // 0=open, 1=pressed, 2+=ghost
+    uint debounce; // countdown to 0
     bool sent;
     hid_keyboard_modifier_bm_t modifier;
 } cbm_scan[65];
@@ -328,11 +328,11 @@ static void cbm_translate_mister(uint8_t *code, hid_keyboard_modifier_bm_t *modi
 
 static void set_cbm_scan(uint idx, bool is_up)
 {
-    if (cbm_scan[idx].debounce)
-        --cbm_scan[idx].debounce;
     if (is_up)
     {
-        if (!cbm_scan[idx].debounce)
+        if (cbm_scan[idx].debounce)
+            --cbm_scan[idx].debounce;
+        else
         {
             cbm_scan[idx].status = 0;
             cbm_scan[idx].sent = false;
@@ -340,11 +340,9 @@ static void set_cbm_scan(uint idx, bool is_up)
     }
     else
     {
+        cbm_scan[idx].debounce = KB_DEBOUNCE_TICKS;
         if (!cbm_scan[idx].status)
-        {
             cbm_scan[idx].status = 1 + KB_GHOST_TICKS;
-            cbm_scan[idx].debounce = KB_DEBOUNCE_TICKS;
-        }
     }
 }
 
@@ -431,12 +429,7 @@ void kb_task()
             uint idx = row * 8 + col;
             if (cbm_scan[idx].status > 1)
                 if (kb_col_pop[col] > 1 && kb_row_pop[row] > 1)
-                {
-                    if (cbm_scan[idx].debounce)
-                        cbm_scan[idx].status = 1 + KB_GHOST_TICKS;
-                    else if (cbm_scan[idx].status > 2)
-                        --cbm_scan[idx].status;
-                }
+                    cbm_scan[idx].status = 1 + KB_GHOST_TICKS;
                 else if (--cbm_scan[idx].status == 1)
                     cbm_scan[idx].modifier = modifier;
         }
@@ -488,35 +481,34 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
                 // Pressing + and - in the same report period needs to send a shift
                 // for the + and no shift for the -. This is impossible,
                 // so we leave one queued for the next report.
-                hid_keyboard_modifier_bm_t this_modifier = cbm_scan[cbmcode].modifier;
-                if (!modifier_locked || modifier == this_modifier)
+                hid_keyboard_modifier_bm_t queued_modifier = cbm_scan[cbmcode].modifier;
+                if (!modifier_locked || modifier == queued_modifier)
                 {
-                    uint8_t keycode = cbmcode;
+                    uint8_t queued_keycode = cbmcode;
                     if (is_mister)
-                        cbm_translate_mister(&keycode, &this_modifier);
+                        cbm_translate_mister(&queued_keycode, &queued_modifier);
                     else
-                        cbm_translate_ascii(&keycode, &this_modifier);
+                        cbm_translate_ascii(&queued_keycode, &queued_modifier);
                     // Pressing ; and ; simultaneously is the same key with
                     // different shift states. When this is detected, release
                     // the held key so it can be repressed in the next repoort.
                     bool ok = true;
                     for (uint i = 0; i < 6; i++)
-                    {
-                        if (codes[i].keycode == keycode)
+                        if (codes[i].keycode == queued_keycode)
                         {
+                            ok = false;
                             for (uint j = i; j < 5; j++)
                                 codes[j] = codes[j + 1];
                             codes[5].keycode = 0;
                             --code_count;
-                            ok = false;
+                            --i;
                         }
-                    }
                     if (ok)
                     {
-                        modifier = this_modifier;
+                        modifier = queued_modifier;
                         modifier_locked = true;
                         codes[code_count].cbmcode = cbmcode;
-                        codes[code_count].keycode = keycode;
+                        codes[code_count].keycode = queued_keycode;
                         cbm_scan[cbmcode].sent = true;
                         code_count++;
                     }
@@ -526,16 +518,15 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
     }
 
     // Recompute modifiers in certain situations.
-    static hid_keyboard_modifier_bm_t previous_modifier = 0;
     if (!modifier_locked)
     {
-        hid_keyboard_modifier_bm_t current_modifier = 0;
+        hid_keyboard_modifier_bm_t scanned_modifier = 0;
         for (uint idx = 0; idx < 65; idx++)
             if (cbm_scan[idx].status == 1)
-                current_modifier |= cbm_to_modifier(idx);
+                scanned_modifier |= cbm_to_modifier(idx);
         if (code_count == 0)
-            modifier = current_modifier;
-        if (code_count == 1 && previous_modifier != current_modifier)
+            modifier = scanned_modifier;
+        if (code_count == 1)
         {
             // Changing the SHIFT state while a key is being held down
             // should usually do nothing, but we need special handling
@@ -544,18 +535,20 @@ hid_keyboard_modifier_bm_t kb_report(uint8_t keycode_return[6])
             {
             // This fixes "C= then SHIFT" when the C= is TAB
             case CBM_KEY_CBM:
-                modifier = current_modifier;
+                modifier = scanned_modifier;
                 break;
             // This fixes holding CRSR key while SHIFT changes
             case CBM_KEY_CRSR_DOWN:
             case CBM_KEY_CRSR_RIGHT:
-                code_count--;
-                set_cbm_scan(codes[code_count].cbmcode, true);
-                codes[code_count].keycode = 0;
+                if (cbm_scan[codes[0].cbmcode].modifier != scanned_modifier)
+                {
+                    cbm_scan[codes[0].cbmcode].modifier = scanned_modifier;
+                    cbm_scan[codes[0].cbmcode].sent = false;
+                    codes[--code_count].keycode = 0;
+                }
                 break;
             }
         }
-        previous_modifier = current_modifier;
     }
 
     // Return new report
