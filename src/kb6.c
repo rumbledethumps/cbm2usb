@@ -13,8 +13,8 @@
 
 #define KB_CAS_US 6
 #define KB_SCAN_INTERVAL_US 200
-#define KB_GHOST_US 2000    // safety wait for bouncing ghost keys
-#define KB_DEBOUNCE_US 5000 // key must be up this long to reset
+#define KB_GHOST_US 2000     // safety wait for bouncing ghost keys
+#define KB_DEBOUNCE_US 20000 // keys are sticky for this long
 static_assert(KB_DEBOUNCE_US > KB_GHOST_US);
 
 #define KB_GHOST_TICKS ((KB_GHOST_US + KB_SCAN_INTERVAL_US - 1) / KB_SCAN_INTERVAL_US)
