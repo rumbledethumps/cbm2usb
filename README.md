@@ -1,4 +1,4 @@
-# Commodore 64 and VIC-20 keyboard matrix decoder
+# Commodore 64 and VIC-20 keyboard to USB
 
 Learn more on YouTube:<br>
 https://youtu.be/kzlCkzl-ei0
@@ -6,6 +6,8 @@ https://youtu.be/kzlCkzl-ei0
 This is a C project for the Raspberry Pi Pico or any other RP2040 board.
 DuPont-style breadboard jumpers mate prefectly with the CBM keyboard's
 single inline 0.1" spaced 20 pin connector.
+
+![DuPont connector hack](sch/dupont.jpg)
 
 ```
 pin 1 to ground
